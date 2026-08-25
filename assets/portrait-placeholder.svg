@@ -1,0 +1,20 @@
+<svg width="760" height="980" viewBox="0 0 760 980" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="760" height="980" fill="#0B2334"/>
+  <rect x="28" y="28" width="704" height="924" rx="14" stroke="#A2F0E5" stroke-opacity=".24"/>
+  <path d="M-118 798C57 612 180 592 344 666C496 734 584 729 860 544" stroke="#4CD7C8" stroke-opacity=".34" stroke-width="1.5"/>
+  <path d="M-56 870C134 643 271 702 396 757C532 817 647 715 812 620" stroke="#F5BE77" stroke-opacity=".45" stroke-width="1.5"/>
+  <circle cx="524" cy="294" r="193" fill="#143B4C"/>
+  <circle cx="524" cy="294" r="156" stroke="#66E0D4" stroke-opacity=".4"/>
+  <circle cx="524" cy="294" r="116" stroke="#F5BE77" stroke-opacity=".58"/>
+  <path d="M105 157H328" stroke="#A2F0E5" stroke-opacity=".4"/>
+  <path d="M105 177H263" stroke="#A2F0E5" stroke-opacity=".18"/>
+  <rect x="105" y="525" width="531" height="1" fill="#A2F0E5" fill-opacity=".24"/>
+  <text x="99" y="442" fill="#F4F0E9" font-family="Arial, sans-serif" font-size="170" font-weight="700" letter-spacing="-12">AY</text>
+  <text x="108" y="579" fill="#A2F0E5" font-family="Arial, sans-serif" font-size="15" letter-spacing="5">CREATIVE DEVELOPER</text>
+  <text x="108" y="816" fill="#F5BE77" font-family="Arial, sans-serif" font-size="15" letter-spacing="4">THINK / BUILD / EVOLVE</text>
+  <circle cx="612" cy="819" r="7" fill="#F5BE77"/>
+  <circle cx="638" cy="819" r="7" fill="#4CD7C8"/>
+  <circle cx="664" cy="819" r="7" fill="#F4F0E9"/>
+  <path d="M103 838H658" stroke="#A2F0E5" stroke-opacity=".24"/>
+  <path d="M584 864H658" stroke="#A2F0E5" stroke-opacity=".5"/>
+</svg>

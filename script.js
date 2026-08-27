@@ -1,5 +1,57 @@
 const canvas = document.querySelector('#room-canvas');
 const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
+let hasRenderedScene = false;
+
+// A tiny painted fallback prevents an empty canvas if an older browser rejects an optional Canvas API.
+function paintEmergencyRoom() {
+  const width = Math.max(320, Math.min(window.innerWidth || 800, 900));
+  const height = Math.max(260, Math.min(window.innerHeight || 520, 620));
+  canvas.width = width;
+  canvas.height = height;
+
+  const sky = ctx.createLinearGradient(0, 0, 0, height);
+  sky.addColorStop(0, '#d7d8cf');
+  sky.addColorStop(0.53, '#c4c4b9');
+  sky.addColorStop(0.531, '#69746d');
+  sky.addColorStop(1, '#37413d');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, width, height);
+
+  const polygon = (points, fill) => {
+    ctx.beginPath();
+    points.forEach(([x, y], index) => index ? ctx.lineTo(x, y) : ctx.moveTo(x, y));
+    ctx.closePath();
+    ctx.fillStyle = fill;
+    ctx.fill();
+  };
+
+  polygon([[width * .15, height * .23], [width * .85, height * .23], [width * .85, height * .55], [width * .15, height * .55]], '#e0dcd1');
+  polygon([[width * .15, height * .55], [width * .85, height * .55], [width, height], [0, height]], '#7a8176');
+  polygon([[width * .53, height * .28], [width * .74, height * .28], [width * .74, height * .47], [width * .53, height * .47]], '#75b4c1');
+  polygon([[width * .36, height * .59], [width * .68, height * .59], [width * .76, height * .84], [width * .26, height * .84]], '#9b604b');
+  ctx.fillStyle = '#765039';
+  ctx.fillRect(width * .56, height * .49, width * .19, height * .035);
+  ctx.fillRect(width * .575, height * .52, width * .018, height * .23);
+  ctx.fillRect(width * .715, height * .52, width * .018, height * .23);
+  ctx.fillStyle = '#2c4147';
+  ctx.fillRect(width * .6, height * .36, width * .11, height * .13);
+  ctx.fillStyle = '#80c5c6';
+  ctx.fillRect(width * .61, height * .37, width * .09, height * .1);
+  ctx.fillStyle = '#506e68';
+  ctx.beginPath();
+  ctx.arc(width * .29, height * .45, width * .045, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillRect(width * .275, height * .45, width * .03, height * .13);
+};
+
+window.addEventListener('error', () => {
+  if (!hasRenderedScene) paintEmergencyRoom();
+});
+window.addEventListener('unhandledrejection', () => {
+  if (!hasRenderedScene) paintEmergencyRoom();
+});
+
+paintEmergencyRoom();
 
 // A small ray-cast room: Canvas 2D only, no WebGL, no downloaded models or textures.
 const ROOM_MAP = [
@@ -522,6 +574,7 @@ function renderScene() {
   const rays = drawWalls(focal, horizon);
   drawObjects(rays.zBuffer, rays.rayCount, focal, horizon);
   drawVignette();
+  hasRenderedScene = true;
 }
 
 function keyboardMovement() {

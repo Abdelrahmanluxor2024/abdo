@@ -1,0 +1,21 @@
+# Android build outputs
+android/local.properties
+android/.gradle/
+android/build/
+android/app/build/
+android/app/src/main/assets/web/
+*.apk
+*.aab
+
+# Node / tooling
+node_modules/
+package-lock.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+*.iml
+.vscode/

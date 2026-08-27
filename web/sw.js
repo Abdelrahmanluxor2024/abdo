@@ -1,6 +1,6 @@
 'use strict';
 /* Season Runner — offline cache */
-const CACHE = 'season-runner-v2';
+const CACHE = 'season-runner-v3';
 const ASSETS = [
   './',
   './index.html',
@@ -8,7 +8,7 @@ const ASSETS = [
   './css/style.css',
   './js/util.js', './js/data.js', './js/audio.js', './js/fx.js',
   './js/obstacles.js', './js/player.js', './js/game.js',
-  './js/input.js', './js/ui.js', './js/main.js',
+  './js/input.js', './js/codes.js', './js/ui.js', './js/main.js',
   './assets/fonts/cairo/cairo-arabic-400-normal.woff2',
   './assets/fonts/cairo/cairo-arabic-600-normal.woff2',
   './assets/fonts/cairo/cairo-arabic-700-normal.woff2',

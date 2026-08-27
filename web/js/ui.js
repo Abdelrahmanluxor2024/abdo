@@ -14,6 +14,7 @@ SR.save = (() => {
     lang: 'ar', sound: true, music: true, vibrate: true,
     leaderboard: [],
     seenHowto: false,
+    usedCodes: [],
   };
   let progress = Object.assign({}, DEFAULT);
 
@@ -32,15 +33,31 @@ SR.save = (() => {
     save();
   }
 
-  function onGemCollected() {
+  /* Credit one gem shard to the wallet and announce any season it unlocks.
+     NOTE: gems used to be counted but never actually added to `progress.gems`,
+     which is why seasons/story never unlocked. */
+  function onGemCollected(quiet) {
     const before = SR.unlockedSeasons(progress);
-    const after = SR.unlockedSeasons(Object.assign({}, progress, { gems: progress.gems + 1 }));
+    progress.gems = (progress.gems || 0) + 1;
+    const after = SR.unlockedSeasons(progress);
+    save();
     if (after > before) {
       const map = { 2: 'toast.unlockSummer', 3: 'toast.unlockAutumn', 4: 'toast.unlockWinter' };
-      setTimeout(() => SR.toast(SR.t(map[after])), 700);
-      SR.game.refreshRotation();
+      if (!quiet) {
+        for (let n = before + 1; n <= after; n++) {
+          if (map[n]) setTimeout(msg => SR.toast(SR.t(msg)), 700, map[n]);
+        }
+      }
+      try { SR.game.refreshRotation(); } catch (e) {}
     }
     if (typeof SR.ui !== 'undefined' && SR.ui.refreshStory) SR.ui.refreshStory();
+    return after > before;
+  }
+
+  /* used by the secret-code redeemer */
+  function addGems(n) {
+    for (let i = 0; i < (n || 0); i++) onGemCollected();
+    save();
   }
 
   function finishRun(stats) {
@@ -48,6 +65,8 @@ SR.save = (() => {
     progress.runCount++;
     progress.totalLeaves += stats.leaves;
     progress.totalGems += stats.gems;
+    // the spendable wallet used by the shop (was never credited before)
+    progress.leaves = (progress.leaves || 0) + (stats.leaves || 0);
     const newBestDist = stats.dist > progress.bestDist;
     const newBestScore = stats.score > progress.bestScore;
     if (newBestDist) progress.bestDist = stats.dist;
@@ -62,7 +81,7 @@ SR.save = (() => {
 
   return {
     get progress() { return progress; },   // live reference (load() reassigns)
-    load, save, reset, onGemCollected, finishRun,
+    load, save, reset, onGemCollected, addGems, finishRun,
   };
 })();
 
@@ -170,6 +189,22 @@ SR.ui = (() => {
     if (name === 'story') refreshStory();
     if (name === 'death') refreshDeath();
     if (name === 'settings') refreshSettingsUI();
+  }
+
+  /* ---------- crash / black-screen recovery ----------
+     Shown instead of a dead black canvas when the render loop dies. */
+  function showFatal(msg, detail) {
+    const ov = $('fatal-overlay');
+    if (!ov) return;
+    const box = $('fatal-msg');
+    if (box) box.textContent = msg || SR.t('fatal.msg');
+    const det = $('fatal-detail');
+    if (det) det.textContent = detail || '';
+    ov.classList.remove('hidden');
+  }
+  function hideFatal() {
+    const ov = $('fatal-overlay');
+    if (ov) ov.classList.add('hidden');
   }
 
   /* ---------- menu ---------- */
@@ -356,6 +391,7 @@ SR.ui = (() => {
       SR.save.save();
       applyLang();
     });
+    wireCode();
     $('btn-reset').addEventListener('click', e => {
       if (e.currentTarget.dataset.confirm) {
         SR.save.reset();
@@ -374,12 +410,50 @@ SR.ui = (() => {
       }
     });
   }
+  /* ---------- secret code ---------- */
+  function wireCode() {
+    const input = $('set-code');
+    const btn = $('btn-code');
+    if (!input || !btn) return;
+    const submit = () => {
+      const res = SR.codes.redeem(input.value);
+      const msg = $('code-msg');
+      SR.audio.play(res.ok ? 'power' : 'click');
+      if (res.ok) {
+        input.value = '';
+        if (msg) {
+          msg.className = 'code-msg ok';
+          msg.textContent = SR.tf('codes.ok', { leaves: U.fmt(res.leaves), gems: res.gems });
+        }
+        SR.toast(SR.tf('codes.ok', { leaves: U.fmt(res.leaves), gems: res.gems }));
+      } else if (msg) {
+        msg.className = 'code-msg bad';
+        msg.textContent = res.reason === 'used' ? SR.t('codes.used') : SR.t('codes.bad');
+      }
+      refreshSettingsUI();
+    };
+    btn.addEventListener('click', submit);
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); submit(); }
+      e.stopPropagation();   // don't let the game's keyboard handler steal keys
+    });
+    input.addEventListener('keyup', e => e.stopPropagation());
+  }
+  function refreshCodeUI() {
+    const p = SR.save.progress;
+    const el = $('code-used');
+    if (!el) return;
+    const n = Array.isArray(p.usedCodes) ? p.usedCodes.length : 0;
+    el.textContent = n ? SR.tf('codes.usedCount', { n }) : '';
+  }
+
   function refreshSettingsUI() {
     const p = SR.save.progress;
     $('set-sound').checked = p.sound;
     $('set-music').checked = p.music;
     $('set-vibrate').checked = p.vibrate;
     $('set-lang').value = p.lang;
+    refreshCodeUI();
   }
 
   /* ---------- story ---------- */
@@ -674,6 +748,7 @@ SR.ui = (() => {
 
   return {
     init, applyLang, showScreen, closeScreens, onRunStart, onRunEnd, onHud,
+    showFatal, hideFatal,
     refreshPowerChips, refreshSeasonPill, refreshStory, refreshSkinsGrid, tick,
     drawNuroPreview,
   };

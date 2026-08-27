@@ -48,3 +48,26 @@ const U = {
   clamp01(v) { return v < 0 ? 0 : (v > 1 ? 1 : v); },
   smooth(t) { t = U.clamp01(t); return t * t * (3 - 2 * t); },
 };
+
+/* ---- Error reporting hook ----------------------------------------------
+   Attached to SR in data.js (SR is created there). Used by game.js/main.js
+   so a rendering failure surfaces in the recovery overlay instead of
+   leaving the player staring at a black screen.
+---------------------------------------------------------------------- */
+function __srReportError(label, err, extra) {
+  try {
+    const rec = {
+      label: label || 'error',
+      msg: String((err && err.message) || err || ''),
+      extra: extra === undefined ? null : extra,
+      at: Date.now(),
+    };
+    if (typeof SR !== 'undefined' && SR) {
+      SR.lastError = rec;
+      if (!SR.errors) SR.errors = [];
+      SR.errors.push(rec);
+      if (SR.errors.length > 20) SR.errors.shift();
+    }
+    if (typeof console !== 'undefined' && console.warn) console.warn('[SeasonRunner] ' + rec.label, err);
+  } catch (e) { /* reporting must never throw */ }
+}

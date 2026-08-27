@@ -46,6 +46,7 @@ configurations.all {
 }
 
 dependencies {
-    implementation 'androidx.appcompat:appcompat:1.7.0'
-    implementation 'androidx.webkit:webkit:1.11.0'
+    // MainActivity extends the framework Activity — androidx is unused and was
+    // adding tens of MB of resources to the universal debug APK (45 MB).
+    // Re-add appcompat only if you ever switch to AppCompatActivity.
 }

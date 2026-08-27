@@ -36,6 +36,7 @@ SR.game = (() => {
     stormT: 0, stormType: null,
 
     player: null,
+    countdownT: 0, countdownStep: -1,
     flash: 0,
     deathT: 0,
     revived: false,
@@ -87,6 +88,7 @@ SR.game = (() => {
     S.nextStormAt = 2400;
     S.revived = false;
     S.elapsedRun = 0;
+    S.countdownT = 0; S.countdownStep = -1;
     S.player.reset();
     S.player.x = 210;
   }
@@ -98,69 +100,63 @@ SR.game = (() => {
     if (S.rotation.indexOf(S.seasonIdx) === -1) S.seasonIdx = 0;
   }
 
-  function start() {
-    if (S.state === 'running') return;
-    SR.audio.init();
-    SR.audio.unlock();
-    SR.audio.play('count');
-    if (SR.ui && SR.ui.closeScreens) SR.ui.closeScreens();
-    refreshRotation();
+  /* ---------- run start ----------
+     Everything risky (audio, DOM) is wrapped so a single failure can never
+     leave the game stuck on an empty "countdown" screen. The countdown itself
+     is driven by game time (see update()), not by setTimeout chains: timers get
+     throttled to ~1/s in a backgrounded WebView, which used to freeze the
+     run start until the user tapped again. */
+  const COUNTDOWN_DUR = 3.1;
+
+  function safe(fn, label) {
+    try { fn(); } catch (e) {
+      try { console.warn('[SeasonRunner] ' + (label || 'error'), e); } catch (_) {}
+      if (typeof SR.reportError === 'function') SR.reportError(label || 'error', e);
+    }
+  }
+
+  function prepareRun() {
+    safe(() => { if (SR.ui && SR.ui.closeScreens) SR.ui.closeScreens(); }, 'closeScreens');
     S.attract = false;
-    S.state = 'countdown';
     resetWorld();
+    refreshRotation();
     S.season = SR.getSeason(0);
     S.seasonIdx = 0;
     S.palFrom = paletteOf(S.season);
     S.palTo = paletteOf(S.season);
     S.palT = 1;
-    SR.audio.startMusic(S.season);
+    S.countdownT = COUNTDOWN_DUR;
+    S.countdownStep = -1;
+    S.state = 'countdown';
     const cd = document.getElementById('countdown');
-    cd.classList.remove('hidden');
-    let n = 3;
-    const tick = () => {
-      if (S.state === 'countdown') {
-        if (n > 0) {
-          cd.textContent = n;
-          SR.audio.play('count');
-          n--;
-          setTimeout(tick, 620);
-        } else {
-          cd.textContent = SR.t('go.go');
-          SR.audio.play('go');
-          setTimeout(() => cd.classList.add('hidden'), 700);
-          S.state = 'running';
-          SR.ui.onRunStart();
-        }
-      }
-    };
-    tick();
+    if (cd) { cd.classList.remove('hidden'); cd.textContent = ''; }
+    safe(() => { SR.audio.init(); SR.audio.unlock(); }, 'audio.init');
+    safe(() => SR.audio.startMusic(S.season), 'audio.startMusic');
+    // HUD must be visible even if something below fails
+    safe(() => { if (SR.ui && SR.ui.onRunStart) SR.ui.onRunStart(); }, 'onRunStart');
+  }
+
+  function start() {
+    if (S.state === 'running' || S.state === 'countdown') return;
+    safe(prepareRun, 'start');
   }
 
   function restart() {
-    if (SR.ui && SR.ui.closeScreens) SR.ui.closeScreens();
-    S.state = 'countdown';
-    resetWorld();
-    S.season = SR.getSeason(0);
-    S.seasonIdx = 0;
-    S.palFrom = paletteOf(S.season);
-    S.palTo = paletteOf(S.season);
-    S.palT = 1;
-    SR.audio.startMusic(S.season);
+    safe(prepareRun, 'restart');
+    // restart is also triggered from the pause screen; make sure it un-pauses
+    if (S.state === 'countdown' && S.countdownT <= 0) S.countdownT = COUNTDOWN_DUR;
+  }
+
+  /* Called from update() when the countdown finishes. */
+  function beginRunning() {
+    safe(() => { S.state = 'running'; }, 'beginRunning');
     const cd = document.getElementById('countdown');
-    cd.classList.remove('hidden');
-    let n = 3;
-    const tick = () => {
-      if (S.state === 'countdown') {
-        if (n > 0) { cd.textContent = n; SR.audio.play('count'); n--; setTimeout(tick, 620); }
-        else {
-          cd.textContent = SR.t('go.go'); SR.audio.play('go');
-          setTimeout(() => cd.classList.add('hidden'), 700);
-          S.state = 'running';
-          SR.ui.onRunStart();
-        }
-      }
-    };
-    tick();
+    if (cd) {
+      cd.textContent = SR.t('go.go');
+      setTimeout(() => cd.classList.add('hidden'), 700);
+    }
+    safe(() => SR.audio.play('go'), 'audio.go');
+    safe(() => { if (SR.ui && SR.ui.onRunStart) SR.ui.onRunStart(); }, 'onRunStart');
   }
 
   function pause() {
@@ -429,6 +425,20 @@ SR.game = (() => {
         SR.ui.onRunEnd();
         return;
       }
+    }
+
+    /* countdown: advanced by game time so throttled/backgrounded timers
+       can never strand the player on a frozen pre-run screen */
+    if (g.state === 'countdown' && !g.attract) {
+      g.countdownT -= dt;
+      const step = Math.max(1, Math.ceil(g.countdownT));
+      if (step !== g.countdownStep && g.countdownT > 0) {
+        g.countdownStep = step;
+        const cd = document.getElementById('countdown');
+        if (cd) cd.textContent = step;
+        safe(() => SR.audio.play('count'), 'audio.count');
+      }
+      if (g.countdownT <= 0) { beginRunning(); return; }
     }
 
     const sdt = dt * g.timeScale;

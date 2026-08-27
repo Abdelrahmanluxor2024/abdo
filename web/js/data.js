@@ -4,6 +4,7 @@
 ================================================================ */
 
 const SR = {};
+SR.reportError = __srReportError;   // defined in util.js
 
 /* ---------- Seasons ---------- */
 SR.SEASONS = [
@@ -135,7 +136,7 @@ SR.LANG = {
     'settings.reset': '🗑️ مسح كل التقدم',
     'settings.resetBtn': 'مسح',
     'settings.resetConfirm': 'متأكد؟ هيتحذف كل تقدمك نهائيًا!',
-    'settings.about': 'Season Runner v1.0 — لعبة Endless Runner بفصول متغيرة. صُنعت بحب 💚',
+    'settings.about': 'Season Runner v1.0.2 — لعبة Endless Runner بفصول متغيرة. صُنعت بحب 💚',
     'story.title': '📖 قصة نورو',
     'story.prologue': 'نورو، روح الطبيعة الصغيرة، تحرس جوهرة التوازن التي تضبط إيقاع الفصول الأربعة. لكن ملك الفوضى سرقها! انكسرت الجوهرة إلى شظايا متناثرة، واختلطت الفصول: صيفٌ يحرق الربيع، وثلجٌ يغطي الخريف… والآن يجب أن تجري نورو عبر عالم متغير بلا توقف لتجمع الشظايا وتعيد التوازن قبل أن ينهار كل شيء!',
     'story.locked': '🔒 أُفتح بـ 💎 {n}',
@@ -208,6 +209,17 @@ SR.LANG = {
     'pow.lock': 'تثبيت',
     'pow.star': 'نجمة',
     'go.go': 'انطلق! 🏃',
+    'codes.title': '🎁 كود سري',
+    'codes.ph': 'اكتب الكود هنا…',
+    'codes.redeem': 'استخدم',
+    'codes.ok': '🎉 تم! +{leaves} 🍃 و +{gems} 💎',
+    'codes.bad': '❌ الكود غير صحيح',
+    'codes.used': '⚠️ الكود ده مستخدم قبل كده',
+    'codes.usedCount': 'الأكواد المستخدمة: {n}',
+    'fatal.title': '😵 حصلت مشكلة في العرض',
+    'fatal.msg': 'اللعبة وقفت فجأة. جرّب إعادة المحاولة أو الرجوع للقائمة.',
+    'fatal.retry': '🔄 إعادة المحاولة',
+    'fatal.menu': '🏠 القائمة الرئيسية',
   },
   en: {
     'menu.sub': 'The Four Seasons Adventure',
@@ -245,7 +257,7 @@ SR.LANG = {
     'settings.reset': '🗑️ Reset all progress',
     'settings.resetBtn': 'Reset',
     'settings.resetConfirm': 'Are you sure? All progress will be lost!',
-    'settings.about': 'Season Runner v1.0 — An endless runner with shifting seasons. Made with love 💚',
+    'settings.about': 'Season Runner v1.0.2 — An endless runner with shifting seasons. Made with love 💚',
     'story.title': '📖 Nuro\'s Story',
     'story.prologue': 'Nuro, the little nature spirit, guards the Balance Gem that keeps the four seasons in rhythm. But the Chaos King stole it! The gem shattered into fragments, and the seasons mixed: summer burning spring, snow covering autumn… Now Nuro must run through an ever-changing world, collect the fragments and restore balance before everything collapses!',
     'story.locked': '🔒 Unlock with 💎 {n}',
@@ -318,6 +330,17 @@ SR.LANG = {
     'pow.lock': 'Lock',
     'pow.star': 'Star',
     'go.go': 'GO! 🏃',
+    'codes.title': '🎁 Secret code',
+    'codes.ph': 'Enter code here…',
+    'codes.redeem': 'Redeem',
+    'codes.ok': '🎉 Redeemed! +{leaves} 🍃 and +{gems} 💎',
+    'codes.bad': '❌ Invalid code',
+    'codes.used': '⚠️ That code was already used',
+    'codes.usedCount': 'Codes redeemed: {n}',
+    'fatal.title': '😵 Rendering problem',
+    'fatal.msg': 'The game stopped drawing. Try again or go back to the menu.',
+    'fatal.retry': '🔄 Try again',
+    'fatal.menu': '🏠 Main menu',
   },
 };
 SR.t = key => {

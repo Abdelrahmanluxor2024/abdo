@@ -1,601 +1,704 @@
 const canvas = document.querySelector('#room-canvas');
-const viewport = document.querySelector('.viewport-shell');
-const resetButton = document.querySelector('#reset-view');
-const lightingButton = document.querySelector('#lighting-toggle');
-const lightingState = document.querySelector('#lighting-state');
-const hint = document.querySelector('#interaction-hint');
-const zoomValue = document.querySelector('#zoom-value');
-const turnRight = document.querySelector('#turn-right');
-const turnLeft = document.querySelector('#turn-left');
-const zoomIn = document.querySelector('#zoom-in');
-const zoomOut = document.querySelector('#zoom-out');
+const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
 
-const context = canvas.getContext('2d', {
-  alpha: false,
-  desynchronized: true,
-});
+// A small ray-cast room: Canvas 2D only, no WebGL, no downloaded models or textures.
+const ROOM_MAP = [
+  [1, 1, 1, 3, 3, 3, 3, 3, 1, 1, 1, 1],
+  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+  [4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+  [4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+  [4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5],
+  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5],
+  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5],
+  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+  [1, 1, 1, 1, 1, 2, 2, 1, 1, 1, 1, 1],
+];
 
-const defaults = Object.freeze({
-  yaw: -0.62,
-  pitch: 0.19,
-  zoom: 1,
-});
+const MAP_WIDTH = ROOM_MAP[0].length;
+const MAP_HEIGHT = ROOM_MAP.length;
+const FOV = Math.PI / 3;
+const EYE_HEIGHT = 0.5;
+const PLAYER_RADIUS = 0.22;
+const NEAR_PLANE = 0.08;
+const MAX_PIXELS = 410000;
 
 const state = {
-  ...defaults,
-  night: false,
+  x: 6.05,
+  y: 8.15,
+  yaw: -Math.PI / 2,
+  pitch: 0,
 };
 
-const metrics = {
-  width: 0,
-  height: 0,
-  ratio: 1,
-  centerX: 0,
-  centerY: 0,
-  unit: 0,
+const keys = new Set();
+const touchPointers = new Map();
+let touchMove = { forward: 0, strafe: 0 };
+let renderQueued = false;
+let movementRunning = false;
+let movementTime = 0;
+let mouseDrag = null;
+let canvasWidth = 0;
+let canvasHeight = 0;
+
+const wallColors = {
+  1: { r: 208, g: 200, b: 183 },
+  2: { r: 117, g: 75, b: 48 },
+  3: { r: 73, g: 135, b: 151 },
+  4: { r: 75, g: 116, b: 106 },
+  5: { r: 152, g: 112, b: 72 },
 };
 
-const palettes = {
-  day: {
-    backgroundTop: '#d6dfdb',
-    backgroundBottom: '#93aaa7',
-    haze: 'rgba(243, 232, 203, 0.22)',
-    floor: '#b6aa98',
-    floorLine: 'rgba(88, 86, 76, 0.18)',
-    wall: '#e8e3d9',
-    sideWall: '#d4d0ca',
-    edge: 'rgba(39, 48, 48, 0.22)',
-    baseboard: '#9a9389',
-    rug: '#c27755',
-    rugLine: 'rgba(252, 232, 189, 0.5)',
-    window: '#91c4d4',
-    windowLight: '#c6e1e2',
-    frame: '#3b555a',
-    frameGlow: 'rgba(213, 239, 230, 0.7)',
-    artwork: '#315660',
-    artworkDetail: '#dea867',
-    deskTop: '#8d6546',
-    deskFront: '#704a32',
-    deskSide: '#5e3e2c',
-    deskEdge: 'rgba(47, 30, 20, 0.44)',
-    monitor: '#253a42',
-    monitorSide: '#1d2c31',
-    screen: '#8ececf',
-    screenLine: 'rgba(226, 255, 248, 0.63)',
-    chairTop: '#63818a',
-    chairFront: '#48656e',
-    chairSide: '#3e5760',
-    plantPot: '#b87952',
-    plantSide: '#955c3d',
-    leafA: '#4d806f',
-    leafB: '#6ca58a',
-    lamp: '#b99361',
-    lampShade: '#dfc98e',
-    lampGlow: 'rgba(255, 233, 169, 0.38)',
-    shadow: 'rgba(42, 46, 42, 0.15)',
-  },
-  night: {
-    backgroundTop: '#203a46',
-    backgroundBottom: '#101d27',
-    haze: 'rgba(74, 151, 159, 0.12)',
-    floor: '#38454a',
-    floorLine: 'rgba(182, 236, 222, 0.1)',
-    wall: '#50626a',
-    sideWall: '#3c5059',
-    edge: 'rgba(207, 250, 239, 0.14)',
-    baseboard: '#67787c',
-    rug: '#8d5547',
-    rugLine: 'rgba(244, 198, 126, 0.38)',
-    window: '#1d485e',
-    windowLight: '#76bdca',
-    frame: '#192c34',
-    frameGlow: 'rgba(142, 226, 204, 0.49)',
-    artwork: '#1e3e48',
-    artworkDetail: '#dca264',
-    deskTop: '#684c3d',
-    deskFront: '#50372e',
-    deskSide: '#3f2b26',
-    deskEdge: 'rgba(15, 12, 10, 0.64)',
-    monitor: '#14252d',
-    monitorSide: '#0d1c22',
-    screen: '#4b9faa',
-    screenLine: 'rgba(190, 247, 234, 0.48)',
-    chairTop: '#45656f',
-    chairFront: '#334e57',
-    chairSide: '#2a4048',
-    plantPot: '#85553e',
-    plantSide: '#68402f',
-    leafA: '#366454',
-    leafB: '#4b8d70',
-    lamp: '#c2955f',
-    lampShade: '#e5c777',
-    lampGlow: 'rgba(255, 204, 114, 0.62)',
-    shadow: 'rgba(1, 9, 12, 0.38)',
-  },
-};
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
 
-let framePending = false;
-let activePointer = null;
-let hintUsed = false;
+function normalizeAngle(angle) {
+  while (angle > Math.PI) angle -= Math.PI * 2;
+  while (angle < -Math.PI) angle += Math.PI * 2;
+  return angle;
+}
 
-const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+function rgb(color, factor, warmth = 0) {
+  const r = Math.round(clamp(color.r * factor + warmth, 0, 255));
+  const g = Math.round(clamp(color.g * factor + warmth * 0.55, 0, 255));
+  const b = Math.round(clamp(color.b * factor, 0, 255));
+  return `rgb(${r}, ${g}, ${b})`;
+}
 
-function scheduleRender() {
-  if (framePending) return;
-  framePending = true;
+function requestRender() {
+  if (renderQueued) return;
+  renderQueued = true;
   requestAnimationFrame(() => {
-    framePending = false;
-    render();
+    renderQueued = false;
+    renderScene();
   });
 }
 
 function resizeCanvas() {
-  const rect = canvas.getBoundingClientRect();
-  const width = Math.max(1, Math.round(rect.width));
-  const height = Math.max(1, Math.round(rect.height));
+  const bounds = canvas.getBoundingClientRect();
+  const cssWidth = Math.max(1, bounds.width);
+  const cssHeight = Math.max(1, bounds.height);
+  const scale = Math.min(0.9, Math.sqrt(MAX_PIXELS / (cssWidth * cssHeight)));
 
-  // Limiting both DPR and pixel count keeps the scene friendly to low-end phones.
-  const deviceRatio = Math.min(window.devicePixelRatio || 1, 1.25);
-  const maxPixels = 820000;
-  const pixelRatio = Math.min(deviceRatio, Math.sqrt(maxPixels / (width * height)));
-
-  metrics.width = width;
-  metrics.height = height;
-  metrics.ratio = Math.max(0.75, pixelRatio);
-  metrics.centerX = width * 0.53;
-  metrics.centerY = height * 0.64;
-  metrics.unit = Math.min(width * 0.092, height * 0.112) * state.zoom;
-
-  canvas.width = Math.max(1, Math.round(width * metrics.ratio));
-  canvas.height = Math.max(1, Math.round(height * metrics.ratio));
-  scheduleRender();
+  canvasWidth = Math.max(280, Math.floor(cssWidth * scale));
+  canvasHeight = Math.max(220, Math.floor(cssHeight * scale));
+  canvas.width = canvasWidth;
+  canvas.height = canvasHeight;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'low';
+  requestRender();
 }
 
-function transformedPoint(point) {
-  const yawCos = Math.cos(state.yaw);
-  const yawSin = Math.sin(state.yaw);
-  const pitchCos = Math.cos(state.pitch);
-  const pitchSin = Math.sin(state.pitch);
+function wallAt(x, y) {
+  if (x < 0 || y < 0 || x >= MAP_WIDTH || y >= MAP_HEIGHT) return 1;
+  return ROOM_MAP[y][x];
+}
 
-  const x = point.x * yawCos - point.z * yawSin;
-  const z = point.x * yawSin + point.z * yawCos;
+function isBlocked(x, y) {
+  const samples = [
+    [x - PLAYER_RADIUS, y - PLAYER_RADIUS],
+    [x + PLAYER_RADIUS, y - PLAYER_RADIUS],
+    [x - PLAYER_RADIUS, y + PLAYER_RADIUS],
+    [x + PLAYER_RADIUS, y + PLAYER_RADIUS],
+  ];
+
+  if (samples.some(([sampleX, sampleY]) => wallAt(Math.floor(sampleX), Math.floor(sampleY)) !== 0)) return true;
+
+  return objects.some((object) => {
+    const distance = Math.hypot(x - object.x, y - object.y);
+    return distance < PLAYER_RADIUS + object.collision;
+  });
+}
+
+function movePlayer(deltaX, deltaY) {
+  const nextX = state.x + deltaX;
+  const nextY = state.y + deltaY;
+
+  if (!isBlocked(nextX, state.y)) state.x = nextX;
+  if (!isBlocked(state.x, nextY)) state.y = nextY;
+}
+
+function castRay(angle) {
+  const rayX = Math.cos(angle);
+  const rayY = Math.sin(angle);
+  let mapX = Math.floor(state.x);
+  let mapY = Math.floor(state.y);
+  const deltaDistanceX = rayX === 0 ? Number.POSITIVE_INFINITY : Math.abs(1 / rayX);
+  const deltaDistanceY = rayY === 0 ? Number.POSITIVE_INFINITY : Math.abs(1 / rayY);
+  const stepX = rayX < 0 ? -1 : 1;
+  const stepY = rayY < 0 ? -1 : 1;
+  let sideDistanceX = rayX < 0 ? (state.x - mapX) * deltaDistanceX : (mapX + 1 - state.x) * deltaDistanceX;
+  let sideDistanceY = rayY < 0 ? (state.y - mapY) * deltaDistanceY : (mapY + 1 - state.y) * deltaDistanceY;
+  let side = 0;
+  let type = 0;
+
+  for (let steps = 0; steps < 64; steps += 1) {
+    if (sideDistanceX < sideDistanceY) {
+      sideDistanceX += deltaDistanceX;
+      mapX += stepX;
+      side = 0;
+    } else {
+      sideDistanceY += deltaDistanceY;
+      mapY += stepY;
+      side = 1;
+    }
+    type = wallAt(mapX, mapY);
+    if (type !== 0) break;
+  }
+
+  const distance = side === 0
+    ? (mapX - state.x + (1 - stepX) / 2) / rayX
+    : (mapY - state.y + (1 - stepY) / 2) / rayY;
+  const hitX = state.x + distance * rayX;
+  const hitY = state.y + distance * rayY;
+  let wallU = side === 0 ? hitY - Math.floor(hitY) : hitX - Math.floor(hitX);
+  if ((side === 0 && rayX > 0) || (side === 1 && rayY < 0)) wallU = 1 - wallU;
+
+  return { distance, side, type, wallU };
+}
+
+function cameraPoint(x, y) {
+  const deltaX = x - state.x;
+  const deltaY = y - state.y;
+  const cos = Math.cos(state.yaw);
+  const sin = Math.sin(state.yaw);
 
   return {
-    x,
-    y: point.y * pitchCos + z * pitchSin,
-    z: -point.y * pitchSin + z * pitchCos,
+    sideways: -sin * deltaX + cos * deltaY,
+    forward: cos * deltaX + sin * deltaY,
   };
 }
 
-function project(point) {
-  const transformed = transformedPoint(point);
-  const perspective = 13.4 / (13.4 + transformed.z);
+function projectFloorPoint(x, y, focal, horizon) {
+  const point = cameraPoint(x, y);
+  if (point.forward <= NEAR_PLANE) return null;
 
   return {
-    x: metrics.centerX + transformed.x * metrics.unit * perspective,
-    y: metrics.centerY - transformed.y * metrics.unit * perspective,
-    z: transformed.z,
-    perspective,
+    x: canvasWidth / 2 + (point.sideways / point.forward) * focal,
+    y: horizon + (EYE_HEIGHT / point.forward) * focal,
+    forward: point.forward,
   };
 }
 
-function addPolygon(items, vertices, fill, options = {}) {
-  const points = vertices.map(project);
-  const depth = points.reduce((sum, point) => sum + point.z, 0) / points.length;
+function clipFloorSegment(start, end, focal, horizon) {
+  let first = cameraPoint(start.x, start.y);
+  let second = cameraPoint(end.x, end.y);
+  let firstWorld = start;
+  let secondWorld = end;
 
-  items.push({
-    type: 'polygon',
-    points,
-    depth,
-    fill,
-    stroke: options.stroke,
-    width: options.width || 1,
-    layer: options.layer ?? 1,
-  });
-}
+  if (first.forward <= NEAR_PLANE && second.forward <= NEAR_PLANE) return null;
 
-function addLine(items, from, to, stroke, options = {}) {
-  const first = project(from);
-  const second = project(to);
-
-  items.push({
-    type: 'line',
-    points: [first, second],
-    depth: (first.z + second.z) / 2,
-    stroke,
-    width: options.width || 1,
-    layer: options.layer ?? 1,
-  });
-}
-
-function addGlow(items, position, radius, color, options = {}) {
-  const point = project(position);
-
-  items.push({
-    type: 'glow',
-    point,
-    radius: radius * metrics.unit * point.perspective,
-    depth: point.z,
-    color,
-    layer: options.layer ?? 3,
-  });
-}
-
-function addBox(items, box, colors, options = {}) {
-  const { x0, x1, y0, y1, z0, z1 } = box;
-  const a = { x: x0, y: y0, z: z0 };
-  const b = { x: x1, y: y0, z: z0 };
-  const c = { x: x1, y: y1, z: z0 };
-  const d = { x: x0, y: y1, z: z0 };
-  const e = { x: x0, y: y0, z: z1 };
-  const f = { x: x1, y: y0, z: z1 };
-  const g = { x: x1, y: y1, z: z1 };
-  const h = { x: x0, y: y1, z: z1 };
-  const layer = options.layer ?? 2;
-  const stroke = options.stroke;
-
-  addPolygon(items, [a, b, c, d], colors.front, { layer, stroke });
-  addPolygon(items, [b, f, g, c], colors.side, { layer, stroke });
-  addPolygon(items, [e, a, d, h], colors.side, { layer, stroke });
-  addPolygon(items, [d, c, g, h], colors.top, { layer, stroke });
-  addPolygon(items, [a, e, f, b], colors.bottom || colors.side, { layer, stroke });
-  addPolygon(items, [f, e, h, g], colors.back || colors.front, { layer, stroke });
-}
-
-function addRoom(items, colors) {
-  const left = -5;
-  const right = 5;
-  const front = -4;
-  const back = 4;
-  const height = 5.7;
-
-  // The room itself: a floor, a back wall, and one side wall. The open front keeps it readable.
-  addPolygon(items, [
-    { x: left, y: 0, z: front },
-    { x: right, y: 0, z: front },
-    { x: right, y: 0, z: back },
-    { x: left, y: 0, z: back },
-  ], colors.floor, { layer: 0, stroke: colors.edge });
-
-  addPolygon(items, [
-    { x: left, y: 0, z: back },
-    { x: right, y: 0, z: back },
-    { x: right, y: height, z: back },
-    { x: left, y: height, z: back },
-  ], colors.wall, { layer: 0, stroke: colors.edge });
-
-  addPolygon(items, [
-    { x: left, y: 0, z: front },
-    { x: left, y: 0, z: back },
-    { x: left, y: height, z: back },
-    { x: left, y: height, z: front },
-  ], colors.sideWall, { layer: 0, stroke: colors.edge });
-
-  // Low-contrast floor seams give depth without using a texture image.
-  for (let z = -3; z <= 3; z += 1.2) {
-    addLine(items, { x: left, y: 0.012, z }, { x: right, y: 0.012, z }, colors.floorLine, { layer: 1, width: 0.7 });
-  }
-  for (let x = -4; x <= 4; x += 1.35) {
-    addLine(items, { x, y: 0.012, z: front }, { x, y: 0.012, z: back }, colors.floorLine, { layer: 1, width: 0.7 });
+  if (first.forward <= NEAR_PLANE || second.forward <= NEAR_PLANE) {
+    const amount = (NEAR_PLANE - first.forward) / (second.forward - first.forward);
+    const intersection = {
+      x: start.x + (end.x - start.x) * amount,
+      y: start.y + (end.y - start.y) * amount,
+    };
+    if (first.forward <= NEAR_PLANE) {
+      firstWorld = intersection;
+      first = cameraPoint(intersection.x, intersection.y);
+    } else {
+      secondWorld = intersection;
+      second = cameraPoint(intersection.x, intersection.y);
+    }
   }
 
-  // Baseboard lines keep the corner crisp.
-  addLine(items, { x: left, y: 0.16, z: back - 0.02 }, { x: right, y: 0.16, z: back - 0.02 }, colors.baseboard, { layer: 1, width: 2 });
-  addLine(items, { x: left + 0.02, y: 0.16, z: front }, { x: left + 0.02, y: 0.16, z: back }, colors.baseboard, { layer: 1, width: 2 });
-
-  // Window in the rear wall.
-  const windowZ = back - 0.035;
-  addPolygon(items, [
-    { x: 0.35, y: 2.25, z: windowZ },
-    { x: 3.4, y: 2.25, z: windowZ },
-    { x: 3.4, y: 4.65, z: windowZ },
-    { x: 0.35, y: 4.65, z: windowZ },
-  ], colors.window, { layer: 1, stroke: colors.frame, width: 2 });
-  addPolygon(items, [
-    { x: 0.52, y: 3.47, z: windowZ - 0.006 },
-    { x: 3.23, y: 3.47, z: windowZ - 0.006 },
-    { x: 3.23, y: 4.48, z: windowZ - 0.006 },
-    { x: 0.52, y: 4.48, z: windowZ - 0.006 },
-  ], colors.windowLight, { layer: 1 });
-  addLine(items, { x: 1.88, y: 2.27, z: windowZ - 0.01 }, { x: 1.88, y: 4.63, z: windowZ - 0.01 }, colors.frame, { layer: 2, width: 1.4 });
-  addLine(items, { x: 0.37, y: 3.46, z: windowZ - 0.01 }, { x: 3.38, y: 3.46, z: windowZ - 0.01 }, colors.frame, { layer: 2, width: 1.4 });
-  addLine(items, { x: 0.35, y: 4.66, z: windowZ - 0.01 }, { x: 3.4, y: 4.66, z: windowZ - 0.01 }, colors.frameGlow, { layer: 2, width: 1 });
-
-  // A small framed print adds a quiet focal point to the wall.
-  addPolygon(items, [
-    { x: -3.9, y: 2.05, z: windowZ },
-    { x: -2.38, y: 2.05, z: windowZ },
-    { x: -2.38, y: 3.8, z: windowZ },
-    { x: -3.9, y: 3.8, z: windowZ },
-  ], colors.artwork, { layer: 1, stroke: colors.frame, width: 3 });
-  addPolygon(items, [
-    { x: -3.58, y: 2.42, z: windowZ - 0.01 },
-    { x: -2.68, y: 2.42, z: windowZ - 0.01 },
-    { x: -3.13, y: 3.45, z: windowZ - 0.01 },
-  ], colors.artworkDetail, { layer: 2 });
+  const projectedStart = projectFloorPoint(firstWorld.x, firstWorld.y, focal, horizon);
+  const projectedEnd = projectFloorPoint(secondWorld.x, secondWorld.y, focal, horizon);
+  if (!projectedStart || !projectedEnd) return null;
+  return [projectedStart, projectedEnd];
 }
 
-function addRug(items, colors) {
-  addPolygon(items, [
-    { x: -2.9, y: 0.025, z: -2.9 },
-    { x: 2.65, y: 0.025, z: -2.9 },
-    { x: 2.65, y: 0.025, z: 1.23 },
-    { x: -2.9, y: 0.025, z: 1.23 },
-  ], colors.rug, { layer: 1, stroke: colors.edge });
+function drawFloorPolygon(points, fill, focal, horizon, stroke) {
+  const projected = points.map((point) => projectFloorPoint(point.x, point.y, focal, horizon));
+  if (projected.some((point) => point === null)) return;
 
-  for (let z = -2.45; z < 1; z += 0.75) {
-    addLine(items, { x: -2.62, y: 0.032, z }, { x: 2.38, y: 0.032, z }, colors.rugLine, { layer: 2, width: 0.8 });
+  ctx.beginPath();
+  projected.forEach((point, index) => {
+    if (index === 0) ctx.moveTo(point.x, point.y);
+    else ctx.lineTo(point.x, point.y);
+  });
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+
+  if (stroke) {
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 1;
+    ctx.stroke();
   }
 }
 
-function addDesk(items, colors) {
-  const desk = { top: colors.deskTop, front: colors.deskFront, side: colors.deskSide };
-  const leg = { top: colors.deskSide, front: colors.deskFront, side: colors.deskSide };
-  const monitor = { top: colors.monitor, front: colors.monitor, side: colors.monitorSide };
-
-  addBox(items, { x0: 0.05, x1: 3.92, y0: 1.48, y1: 1.73, z0: 1.52, z1: 3.25 }, desk, { stroke: colors.deskEdge });
-
-  [[0.24, 0.46, 1.66, 1.89], [3.5, 3.72, 1.66, 1.89], [0.24, 0.46, 2.91, 3.13], [3.5, 3.72, 2.91, 3.13]].forEach(([x0, x1, z0, z1]) => {
-    addBox(items, { x0, x1, y0: 0, y1: 1.49, z0, z1 }, leg, { stroke: colors.deskEdge });
-  });
-
-  // Monitor, screen, stand, keyboard and a small coffee cup.
-  addBox(items, { x0: 0.76, x1: 2.81, y0: 1.88, y1: 3.28, z0: 2.58, z1: 2.72 }, monitor, { stroke: colors.edge });
-  addPolygon(items, [
-    { x: 0.9, y: 2.02, z: 2.565 },
-    { x: 2.67, y: 2.02, z: 2.565 },
-    { x: 2.67, y: 3.12, z: 2.565 },
-    { x: 0.9, y: 3.12, z: 2.565 },
-  ], colors.screen, { layer: 3, stroke: colors.screenLine, width: 0.7 });
-  addLine(items, { x: 1.1, y: 2.82, z: 2.55 }, { x: 2.22, y: 2.82, z: 2.55 }, colors.screenLine, { layer: 3, width: 1.2 });
-  addLine(items, { x: 1.1, y: 2.59, z: 2.55 }, { x: 1.83, y: 2.59, z: 2.55 }, colors.screenLine, { layer: 3, width: 0.9 });
-  addBox(items, { x0: 1.67, x1: 1.89, y0: 1.7, y1: 1.9, z0: 2.6, z1: 2.72 }, monitor, { stroke: colors.edge });
-  addBox(items, { x0: 1.32, x1: 2.23, y0: 1.72, y1: 1.78, z0: 2.48, z1: 2.83 }, monitor, { stroke: colors.edge });
-  addBox(items, { x0: 0.72, x1: 1.06, y0: 1.74, y1: 2.04, z0: 1.95, z1: 2.28 }, { top: colors.windowLight, front: colors.windowLight, side: colors.frame }, { stroke: colors.edge });
+function drawFloorEllipse(x, y, radiusX, radiusY, fill, focal, horizon) {
+  const points = [];
+  for (let index = 0; index < 14; index += 1) {
+    const angle = (index / 14) * Math.PI * 2;
+    points.push({ x: x + Math.cos(angle) * radiusX, y: y + Math.sin(angle) * radiusY });
+  }
+  drawFloorPolygon(points, fill, focal, horizon);
 }
 
-function addChair(items, colors) {
-  const chair = { top: colors.chairTop, front: colors.chairFront, side: colors.chairSide };
-  const darkChair = { top: colors.chairSide, front: colors.chairSide, side: colors.chairSide };
+function drawBackdrop(horizon) {
+  const ceiling = ctx.createLinearGradient(0, 0, 0, horizon);
+  ceiling.addColorStop(0, '#d9d8cf');
+  ceiling.addColorStop(0.68, '#c4c4b9');
+  ceiling.addColorStop(1, '#a7ada5');
+  ctx.fillStyle = ceiling;
+  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
-  addBox(items, { x0: -2.3, x1: -0.67, y0: 0.76, y1: 1.02, z0: -1.56, z1: 0.04 }, chair, { stroke: colors.edge });
-  addBox(items, { x0: -2.3, x1: -0.67, y0: 1.01, y1: 2.5, z0: -0.02, z1: 0.17 }, chair, { stroke: colors.edge });
+  const floor = ctx.createLinearGradient(0, horizon, 0, canvasHeight);
+  floor.addColorStop(0, '#79837b');
+  floor.addColorStop(0.44, '#687068');
+  floor.addColorStop(1, '#424943');
+  ctx.fillStyle = floor;
+  ctx.fillRect(0, horizon, canvasWidth, canvasHeight - horizon);
 
-  [[-2.12, -1.94, -1.36, -1.17], [-1.03, -0.85, -1.36, -1.17], [-2.12, -1.94, -0.17, 0.01], [-1.03, -0.85, -0.17, 0.01]].forEach(([x0, x1, z0, z1]) => {
-    addBox(items, { x0, x1, y0: 0, y1: 0.76, z0, z1 }, darkChair, { stroke: colors.edge });
-  });
+  // A soft ceiling light, painted once per rendered view rather than animated.
+  const light = ctx.createRadialGradient(canvasWidth * 0.52, horizon * 0.42, 0, canvasWidth * 0.52, horizon * 0.42, canvasWidth * 0.44);
+  light.addColorStop(0, 'rgba(255, 246, 217, 0.28)');
+  light.addColorStop(1, 'rgba(255, 246, 217, 0)');
+  ctx.fillStyle = light;
+  ctx.fillRect(0, 0, canvasWidth, Math.max(horizon, 1));
 }
 
-function addPlant(items, colors) {
-  const pot = { top: colors.plantPot, front: colors.plantPot, side: colors.plantSide };
-  addBox(items, { x0: -4.47, x1: -3.7, y0: 0, y1: 0.6, z0: 2.89, z1: 3.57 }, pot, { stroke: colors.edge });
+function drawFloor(focal, horizon) {
+  // Grid seams: inexpensive lines that provide perspective and movement cues.
+  ctx.strokeStyle = 'rgba(213, 209, 190, 0.15)';
+  ctx.lineWidth = 1;
 
-  const base = { x: -4.09, y: 0.57, z: 3.24 };
-  addPolygon(items, [base, { x: -4.96, y: 1.84, z: 3.29 }, { x: -4.15, y: 1.31, z: 3.13 }], colors.leafA, { layer: 3, stroke: colors.edge, width: 0.5 });
-  addPolygon(items, [base, { x: -3.23, y: 1.92, z: 3.31 }, { x: -3.9, y: 1.21, z: 3.35 }], colors.leafB, { layer: 3, stroke: colors.edge, width: 0.5 });
-  addPolygon(items, [base, { x: -4.18, y: 2.38, z: 3.5 }, { x: -4.41, y: 1.17, z: 3.13 }], colors.leafB, { layer: 3, stroke: colors.edge, width: 0.5 });
-  addPolygon(items, [base, { x: -3.46, y: 1.57, z: 2.61 }, { x: -4.0, y: 1.14, z: 3.24 }], colors.leafA, { layer: 3, stroke: colors.edge, width: 0.5 });
-}
+  for (let x = 1; x < MAP_WIDTH; x += 1) {
+    const segment = clipFloorSegment({ x, y: 1 }, { x, y: MAP_HEIGHT - 1 }, focal, horizon);
+    if (!segment) continue;
+    ctx.beginPath();
+    ctx.moveTo(segment[0].x, segment[0].y);
+    ctx.lineTo(segment[1].x, segment[1].y);
+    ctx.stroke();
+  }
 
-function addLamp(items, colors) {
-  addBox(items, { x0: -4.35, x1: -3.58, y0: 0.01, y1: 0.1, z0: -0.18, z1: 0.25 }, { top: colors.lamp, front: colors.lamp, side: colors.lamp }, { layer: 2, stroke: colors.edge });
-  addLine(items, { x: -3.96, y: 0.1, z: 0.04 }, { x: -3.96, y: 3.45, z: 0.04 }, colors.lamp, { layer: 3, width: 2 });
-  addPolygon(items, [
-    { x: -4.4, y: 3.38, z: -0.06 },
-    { x: -3.52, y: 3.38, z: -0.06 },
-    { x: -3.64, y: 3.93, z: -0.06 },
-    { x: -4.28, y: 3.93, z: -0.06 },
-  ], colors.lampShade, { layer: 3, stroke: colors.edge });
-  addGlow(items, { x: -3.96, y: 3.38, z: -0.1 }, state.night ? 0.42 : 0.3, colors.lampGlow, { layer: 4 });
-}
+  for (let y = 1; y < MAP_HEIGHT; y += 1) {
+    const segment = clipFloorSegment({ x: 1, y }, { x: MAP_WIDTH - 1, y }, focal, horizon);
+    if (!segment) continue;
+    ctx.beginPath();
+    ctx.moveTo(segment[0].x, segment[0].y);
+    ctx.lineTo(segment[1].x, segment[1].y);
+    ctx.stroke();
+  }
 
-function addRoomShadows(items, colors) {
-  addPolygon(items, [
-    { x: -3.5, y: 0.018, z: -2.1 },
-    { x: 4.35, y: 0.018, z: -2.1 },
-    { x: 4.35, y: 0.018, z: 3.45 },
-    { x: -3.5, y: 0.018, z: 3.45 },
-  ], colors.shadow, { layer: 1 });
-}
-
-function drawBackground(colors) {
-  const gradient = context.createLinearGradient(0, 0, 0, metrics.height);
-  gradient.addColorStop(0, colors.backgroundTop);
-  gradient.addColorStop(0.63, colors.backgroundBottom);
-  gradient.addColorStop(1, colors.backgroundBottom);
-  context.fillStyle = gradient;
-  context.fillRect(0, 0, metrics.width, metrics.height);
-
-  const halo = context.createRadialGradient(
-    metrics.width * 0.74,
-    metrics.height * 0.19,
-    3,
-    metrics.width * 0.74,
-    metrics.height * 0.19,
-    Math.max(metrics.width, metrics.height) * 0.56,
+  // Soft rug and furniture shadows live in world coordinates, so they move naturally with the room.
+  drawFloorPolygon(
+    [{ x: 4.15, y: 3.35 }, { x: 8.72, y: 3.35 }, { x: 8.72, y: 5.92 }, { x: 4.15, y: 5.92 }],
+    '#955f4c',
+    focal,
+    horizon,
+    'rgba(238, 200, 136, 0.32)',
   );
-  halo.addColorStop(0, colors.haze);
-  halo.addColorStop(1, 'rgba(255,255,255,0)');
-  context.fillStyle = halo;
-  context.fillRect(0, 0, metrics.width, metrics.height);
+
+  for (let y = 3.8; y < 5.7; y += 0.47) {
+    const segment = clipFloorSegment({ x: 4.28, y }, { x: 8.58, y }, focal, horizon);
+    if (!segment) continue;
+    ctx.strokeStyle = 'rgba(244, 211, 150, 0.39)';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(segment[0].x, segment[0].y);
+    ctx.lineTo(segment[1].x, segment[1].y);
+    ctx.stroke();
+  }
+
+  objects.forEach((object) => {
+    drawFloorEllipse(object.x, object.y + object.collision * 0.26, object.collision * 1.25, object.collision * 0.54, 'rgba(17, 23, 23, 0.25)', focal, horizon);
+  });
 }
 
-function drawItem(item) {
-  context.save();
-  context.lineJoin = 'round';
-  context.lineCap = 'round';
+function wallFill(type, wallU, side, correctedDistance) {
+  const distanceShade = clamp(1.04 - correctedDistance * 0.07, 0.39, 1);
+  const sideShade = side === 1 ? 0.78 : 1;
+  const variation = Math.sin(wallU * 45) * 0.035;
+  const base = wallColors[type] || wallColors[1];
 
-  if (item.type === 'polygon') {
-    context.beginPath();
-    item.points.forEach((point, index) => {
-      if (index === 0) context.moveTo(point.x, point.y);
-      else context.lineTo(point.x, point.y);
-    });
-    context.closePath();
-    if (item.fill) {
-      context.fillStyle = item.fill;
-      context.fill();
+  if (type === 3) {
+    const frame = wallU < 0.06 || wallU > 0.94 || Math.abs(wallU - 0.5) < 0.025;
+    return frame ? rgb({ r: 37, g: 61, b: 65 }, distanceShade * sideShade) : rgb(base, (distanceShade + variation) * (side === 1 ? 0.88 : 1), 3);
+  }
+
+  if (type === 2) {
+    const grain = Math.sin(wallU * 110) * 0.08 + Math.sin(wallU * 29) * 0.04;
+    return rgb(base, (distanceShade + grain) * sideShade, 6);
+  }
+
+  if (type === 5) {
+    const grain = Math.sin(wallU * 66) * 0.05;
+    return rgb(base, (distanceShade + grain) * sideShade, 4);
+  }
+
+  return rgb(base, (distanceShade + variation) * sideShade);
+}
+
+function drawWalls(focal, horizon) {
+  const rayCount = clamp(Math.floor(canvasWidth / 2.7), 120, 250);
+  const zBuffer = new Array(rayCount);
+  const stripWidth = canvasWidth / rayCount + 1;
+  const halfFovTan = Math.tan(FOV / 2);
+
+  for (let index = 0; index < rayCount; index += 1) {
+    const cameraX = ((index + 0.5) / rayCount) * 2 - 1;
+    const angle = state.yaw + Math.atan(cameraX * halfFovTan);
+    const hit = castRay(angle);
+    const correctedDistance = Math.max(0.001, hit.distance * Math.cos(angle - state.yaw));
+    const wallHeight = focal / correctedDistance;
+    const top = horizon - wallHeight * (1 - EYE_HEIGHT);
+    const bottom = horizon + wallHeight * EYE_HEIGHT;
+    const columnX = index * (canvasWidth / rayCount);
+
+    zBuffer[index] = correctedDistance;
+    ctx.fillStyle = wallFill(hit.type, hit.wallU, hit.side, correctedDistance);
+    ctx.fillRect(columnX, top, stripWidth, bottom - top + 1);
+
+    // Sparse wall details use the same low ray count as the walls.
+    if (hit.type === 1 && wallHeight > 46 && Math.floor(hit.wallU * 7) % 4 === 0) {
+      ctx.fillStyle = `rgba(76, 73, 65, ${clamp(0.13 - correctedDistance * 0.006, 0.035, 0.13)})`;
+      ctx.fillRect(columnX, top + wallHeight * 0.33, stripWidth, Math.max(1, wallHeight * 0.008));
     }
-    if (item.stroke) {
-      context.strokeStyle = item.stroke;
-      context.lineWidth = item.width;
-      context.stroke();
+
+    if (hit.type === 3 && wallHeight > 28 && Math.floor(hit.wallU * 7) % 3 === 1) {
+      ctx.fillStyle = `rgba(223, 247, 238, ${clamp(0.2 - correctedDistance * 0.008, 0.04, 0.2)})`;
+      ctx.fillRect(columnX, top + wallHeight * 0.22, stripWidth, Math.max(1, wallHeight * 0.03));
+    }
+
+    if (hit.type === 2 && wallHeight > 40 && hit.wallU > 0.73 && hit.wallU < 0.79) {
+      ctx.fillStyle = `rgba(30, 25, 20, ${clamp(0.42 - correctedDistance * 0.02, 0.1, 0.42)})`;
+      ctx.fillRect(columnX, top + wallHeight * 0.53, stripWidth, Math.max(2, wallHeight * 0.04));
     }
   }
 
-  if (item.type === 'line') {
-    context.beginPath();
-    context.moveTo(item.points[0].x, item.points[0].y);
-    context.lineTo(item.points[1].x, item.points[1].y);
-    context.strokeStyle = item.stroke;
-    context.lineWidth = item.width;
-    context.stroke();
+  return { zBuffer, rayCount };
+}
+
+function roundRect(context, x, y, width, height, radius) {
+  const safeRadius = Math.min(radius, width / 2, height / 2);
+  context.beginPath();
+  context.moveTo(x + safeRadius, y);
+  context.arcTo(x + width, y, x + width, y + height, safeRadius);
+  context.arcTo(x + width, y + height, x, y + height, safeRadius);
+  context.arcTo(x, y + height, x, y, safeRadius);
+  context.arcTo(x, y, x + width, y, safeRadius);
+  context.closePath();
+}
+
+function makeSprite(width, height, draw) {
+  const sprite = document.createElement('canvas');
+  sprite.width = width;
+  sprite.height = height;
+  const spriteContext = sprite.getContext('2d');
+  spriteContext.imageSmoothingEnabled = true;
+  draw(spriteContext, width, height);
+  return sprite;
+}
+
+const textures = {
+  desk: makeSprite(220, 146, (c, w, h) => {
+    c.fillStyle = 'rgba(15, 18, 17, 0.18)';
+    c.beginPath(); c.ellipse(w / 2, h - 10, w * 0.42, 9, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#5d3d2d'; c.fillRect(21, 100, 178, 14);
+    c.fillStyle = '#8e6444'; c.fillRect(16, 91, 188, 13);
+    c.fillStyle = '#4b3027'; c.fillRect(28, 104, 9, 37); c.fillRect(182, 104, 9, 37);
+    c.fillStyle = '#1b2c32'; roundRect(c, 68, 24, 90, 65, 4); c.fill();
+    c.fillStyle = '#73b9bd'; roundRect(c, 74, 30, 78, 52, 2); c.fill();
+    c.fillStyle = 'rgba(224, 250, 241, 0.48)'; c.fillRect(83, 43, 45, 4); c.fillRect(83, 53, 30, 3);
+    c.fillStyle = '#293a39'; c.fillRect(109, 89, 8, 12); c.fillRect(91, 100, 44, 5);
+    c.fillStyle = '#2b3938'; roundRect(c, 43, 107, 49, 7, 2); c.fill();
+    c.fillStyle = '#dfd8c3'; c.beginPath(); c.arc(174, 98, 8, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = '#d7cfb9'; c.lineWidth = 3; c.beginPath(); c.arc(181, 96, 6, -1.1, 1.1); c.stroke();
+  }),
+  chair: makeSprite(136, 178, (c, w, h) => {
+    c.fillStyle = 'rgba(15, 18, 17, 0.19)'; c.beginPath(); c.ellipse(w / 2, h - 8, 48, 9, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#3f5c62'; roundRect(c, 29, 24, 78, 61, 17); c.fill();
+    c.fillStyle = '#57757a'; roundRect(c, 34, 28, 68, 51, 13); c.fill();
+    c.fillStyle = '#3e5a60'; roundRect(c, 20, 92, 96, 28, 10); c.fill();
+    c.fillStyle = '#618087'; roundRect(c, 27, 95, 82, 19, 8); c.fill();
+    c.fillStyle = '#293f44'; c.fillRect(63, 119, 9, 37); c.fillRect(27, 155, 82, 5);
+    c.fillRect(31, 151, 5, 19); c.fillRect(100, 151, 5, 19);
+    c.beginPath(); c.arc(28, 171, 6, 0, Math.PI * 2); c.arc(108, 171, 6, 0, Math.PI * 2); c.fill();
+  }),
+  plant: makeSprite(126, 205, (c, w, h) => {
+    const leaf = (x, y, rotation, color, sizeX, sizeY) => {
+      c.save(); c.translate(x, y); c.rotate(rotation); c.fillStyle = color; c.beginPath(); c.ellipse(0, -sizeY / 2, sizeX, sizeY, 0, 0, Math.PI * 2); c.fill(); c.restore();
+    };
+    c.fillStyle = 'rgba(15, 18, 17, 0.16)'; c.beginPath(); c.ellipse(w / 2, h - 10, 43, 8, 0, 0, Math.PI * 2); c.fill();
+    leaf(61, 121, -0.7, '#41765e', 13, 61); leaf(58, 119, 0.55, '#639374', 15, 66); leaf(59, 118, 0.08, '#4b8568', 14, 77); leaf(62, 127, -1.12, '#588e6d', 10, 51); leaf(61, 127, 1.05, '#376a56', 11, 53);
+    c.fillStyle = '#9d5e42'; c.beginPath(); c.moveTo(33, 145); c.lineTo(92, 145); c.lineTo(83, 194); c.lineTo(42, 194); c.closePath(); c.fill();
+    c.fillStyle = '#c48358'; c.fillRect(31, 143, 63, 9);
+  }),
+  lamp: makeSprite(88, 230, (c, w, h) => {
+    const glow = c.createRadialGradient(w / 2, 48, 4, w / 2, 48, 47); glow.addColorStop(0, 'rgba(255, 224, 144, 0.52)'); glow.addColorStop(1, 'rgba(255, 224, 144, 0)'); c.fillStyle = glow; c.fillRect(0, 0, w, 100);
+    c.fillStyle = '#d6bd82'; c.beginPath(); c.moveTo(14, 65); c.lineTo(74, 65); c.lineTo(64, 20); c.lineTo(24, 20); c.closePath(); c.fill();
+    c.fillStyle = '#ab8957'; c.fillRect(41, 66, 6, 133); c.fillRect(21, 198, 46, 7);
+    c.fillStyle = '#72583d'; c.fillRect(25, 205, 38, 7);
+  }),
+  sofa: makeSprite(230, 142, (c, w, h) => {
+    c.fillStyle = 'rgba(15, 18, 17, 0.19)'; c.beginPath(); c.ellipse(w / 2, h - 11, 94, 9, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#4b675f'; roundRect(c, 18, 63, 194, 54, 11); c.fill();
+    c.fillStyle = '#597b70'; roundRect(c, 29, 32, 172, 55, 12); c.fill();
+    c.fillStyle = '#6d9080'; roundRect(c, 38, 41, 76, 37, 8); c.fill(); roundRect(c, 118, 41, 74, 37, 8); c.fill();
+    c.fillStyle = '#3b514c'; roundRect(c, 10, 62, 29, 56, 7); c.fill(); roundRect(c, 191, 62, 29, 56, 7); c.fill();
+    c.fillStyle = '#2d3e3b'; c.fillRect(31, 113, 9, 19); c.fillRect(189, 113, 9, 19);
+  }),
+  shelf: makeSprite(130, 205, (c, w, h) => {
+    c.fillStyle = 'rgba(15, 18, 17, 0.17)'; c.beginPath(); c.ellipse(w / 2, h - 8, 47, 7, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#694936'; c.fillRect(18, 18, 94, 174); c.fillStyle = '#ab7951'; c.fillRect(24, 25, 82, 8); c.fillRect(24, 82, 82, 8); c.fillRect(24, 139, 82, 8);
+    const book = (x, y, width, color) => { c.fillStyle = color; c.fillRect(x, y, width, 39); };
+    book(30, 39, 13, '#4f7d72'); book(45, 36, 10, '#d4a35e'); book(57, 41, 15, '#3d5d66'); book(76, 34, 12, '#bd7460');
+    book(31, 96, 16, '#d1a165'); book(50, 94, 10, '#3f6f6a'); book(62, 101, 15, '#a75d4b'); book(80, 95, 13, '#627b8d');
+    c.fillStyle = '#dfcf9a'; c.beginPath(); c.arc(66, 162, 15, 0, Math.PI * 2); c.fill();
+  }),
+};
+
+const objects = [
+  { kind: 'desk', x: 8.65, y: 2.08, width: 2.38, height: 1.34, collision: 0.92 },
+  { kind: 'chair', x: 7.35, y: 4.08, width: 1.12, height: 1.05, collision: 0.55 },
+  { kind: 'plant', x: 2.13, y: 2.18, width: 0.88, height: 1.38, collision: 0.39 },
+  { kind: 'lamp', x: 2.08, y: 6.15, width: 0.55, height: 1.63, collision: 0.28 },
+  { kind: 'sofa', x: 9.42, y: 7.54, width: 2.0, height: 0.92, collision: 0.9 },
+  { kind: 'shelf', x: 1.92, y: 8.63, width: 0.75, height: 1.46, collision: 0.38 },
+];
+
+function drawObjects(zBuffer, rayCount, focal, horizon) {
+  const visible = objects
+    .map((object) => {
+      const deltaX = object.x - state.x;
+      const deltaY = object.y - state.y;
+      const distance = Math.hypot(deltaX, deltaY);
+      const relativeAngle = normalizeAngle(Math.atan2(deltaY, deltaX) - state.yaw);
+      const forward = distance * Math.cos(relativeAngle);
+      return { ...object, distance, relativeAngle, forward };
+    })
+    .filter((object) => object.forward > NEAR_PLANE && Math.abs(object.relativeAngle) < FOV * 0.7)
+    .sort((first, second) => second.forward - first.forward);
+
+  visible.forEach((object) => {
+    const screenX = canvasWidth / 2 + Math.tan(object.relativeAngle) * focal;
+    const rayIndex = clamp(Math.floor((screenX / canvasWidth) * rayCount), 0, rayCount - 1);
+    if (object.forward > zBuffer[rayIndex] + 0.16) return;
+
+    const screenHeight = (object.height / object.forward) * focal;
+    const screenWidth = (object.width / object.forward) * focal;
+    const bottom = horizon + (EYE_HEIGHT / object.forward) * focal;
+    const top = bottom - screenHeight;
+    const left = screenX - screenWidth / 2;
+    const alpha = clamp(1.1 - object.forward * 0.027, 0.63, 1);
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.drawImage(textures[object.kind], left, top, screenWidth, screenHeight);
+    ctx.restore();
+  });
+}
+
+function drawVignette() {
+  const vignette = ctx.createRadialGradient(
+    canvasWidth * 0.5,
+    canvasHeight * 0.47,
+    canvasWidth * 0.18,
+    canvasWidth * 0.5,
+    canvasHeight * 0.47,
+    canvasWidth * 0.79,
+  );
+  vignette.addColorStop(0, 'rgba(0, 0, 0, 0)');
+  vignette.addColorStop(0.7, 'rgba(9, 18, 17, 0.015)');
+  vignette.addColorStop(1, 'rgba(9, 18, 17, 0.25)');
+  ctx.fillStyle = vignette;
+  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+}
+
+function renderScene() {
+  if (!canvasWidth || !canvasHeight) return;
+
+  const horizon = clamp(canvasHeight * (0.5 + state.pitch * 0.36), canvasHeight * 0.27, canvasHeight * 0.73);
+  const focal = canvasWidth / (2 * Math.tan(FOV / 2));
+
+  drawBackdrop(horizon);
+  drawFloor(focal, horizon);
+  const rays = drawWalls(focal, horizon);
+  drawObjects(rays.zBuffer, rays.rayCount, focal, horizon);
+  drawVignette();
+}
+
+function keyboardMovement() {
+  const forward = (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0) - (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0) + touchMove.forward;
+  const strafe = (keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0) + touchMove.strafe;
+  return { forward: clamp(forward, -1, 1), strafe: clamp(strafe, -1, 1) };
+}
+
+function motionActive() {
+  const input = keyboardMovement();
+  return Math.abs(input.forward) > 0.01 || Math.abs(input.strafe) > 0.01;
+}
+
+function movementFrame(time) {
+  const delta = Math.min(34, time - movementTime || 16.67);
+  movementTime = time;
+  const input = keyboardMovement();
+
+  if (Math.abs(input.forward) > 0.01 || Math.abs(input.strafe) > 0.01) {
+    const amount = Math.hypot(input.forward, input.strafe) || 1;
+    const forward = input.forward / amount;
+    const strafe = input.strafe / amount;
+    const speed = 2.65 * (delta / 1000);
+    const cos = Math.cos(state.yaw);
+    const sin = Math.sin(state.yaw);
+    movePlayer((cos * forward - sin * strafe) * speed, (sin * forward + cos * strafe) * speed);
+    renderScene();
   }
 
-  if (item.type === 'glow') {
-    const gradient = context.createRadialGradient(item.point.x, item.point.y, 0, item.point.x, item.point.y, item.radius);
-    gradient.addColorStop(0, item.color);
-    gradient.addColorStop(1, 'rgba(255,255,255,0)');
-    context.fillStyle = gradient;
-    context.beginPath();
-    context.arc(item.point.x, item.point.y, item.radius, 0, Math.PI * 2);
-    context.fill();
+  if (motionActive()) {
+    requestAnimationFrame(movementFrame);
+  } else {
+    movementRunning = false;
+    movementTime = 0;
+  }
+}
+
+function startMovement() {
+  if (movementRunning || !motionActive()) return;
+  movementRunning = true;
+  movementTime = performance.now();
+  requestAnimationFrame(movementFrame);
+}
+
+function refreshTouchMovement() {
+  const mover = [...touchPointers.values()].find((pointer) => pointer.role === 'move');
+  if (!mover) {
+    touchMove = { forward: 0, strafe: 0 };
+    return;
   }
 
-  context.restore();
-}
-
-function render() {
-  if (!metrics.width || !metrics.height) return;
-
-  metrics.unit = Math.min(metrics.width * 0.092, metrics.height * 0.112) * state.zoom;
-  context.setTransform(metrics.ratio, 0, 0, metrics.ratio, 0, 0);
-  context.clearRect(0, 0, metrics.width, metrics.height);
-
-  const colors = state.night ? palettes.night : palettes.day;
-  drawBackground(colors);
-
-  const items = [];
-  addRoom(items, colors);
-  addRoomShadows(items, colors);
-  addRug(items, colors);
-  addDesk(items, colors);
-  addChair(items, colors);
-  addPlant(items, colors);
-  addLamp(items, colors);
-
-  items
-    .sort((a, b) => a.layer - b.layer || b.depth - a.depth)
-    .forEach(drawItem);
-}
-
-function hideHint() {
-  if (hintUsed) return;
-  hintUsed = true;
-  hint.classList.add('is-hidden');
-}
-
-function setZoom(value) {
-  state.zoom = clamp(value, 0.84, 1.18);
-  zoomValue.textContent = `${Math.round(state.zoom * 100)}%`;
-  scheduleRender();
-}
-
-function resetView() {
-  state.yaw = defaults.yaw;
-  state.pitch = defaults.pitch;
-  setZoom(defaults.zoom);
-  scheduleRender();
-}
-
-function updateLighting() {
-  viewport.classList.toggle('is-night', state.night);
-  lightingButton.setAttribute('aria-pressed', String(state.night));
-  lightingButton.setAttribute('aria-label', state.night ? 'تفعيل الإضاءة النهارية' : 'تفعيل الإضاءة المسائية');
-  lightingState.textContent = state.night ? 'إضاءة مسائية' : 'إضاءة نهارية';
-  scheduleRender();
+  touchMove = {
+    forward: clamp((mover.startY - mover.lastY) / 85, -1, 1),
+    strafe: clamp((mover.lastX - mover.startX) / 85, -1, 1),
+  };
+  startMovement();
 }
 
 canvas.addEventListener('pointerdown', (event) => {
-  activePointer = {
-    id: event.pointerId,
-    x: event.clientX,
-    y: event.clientY,
-  };
-  canvas.setPointerCapture(event.pointerId);
-  canvas.classList.add('is-dragging');
   canvas.focus({ preventScroll: true });
-  hideHint();
-});
 
-canvas.addEventListener('pointermove', (event) => {
-  if (!activePointer || activePointer.id !== event.pointerId) return;
-
-  const deltaX = event.clientX - activePointer.x;
-  const deltaY = event.clientY - activePointer.y;
-  activePointer.x = event.clientX;
-  activePointer.y = event.clientY;
-
-  state.yaw = clamp(state.yaw - deltaX * 0.006, -1.02, -0.18);
-  state.pitch = clamp(state.pitch - deltaY * 0.0032, 0.08, 0.37);
-  scheduleRender();
-});
-
-function endPointer(event) {
-  if (!activePointer || activePointer.id !== event.pointerId) return;
-  activePointer = null;
-  canvas.classList.remove('is-dragging');
-  if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
-}
-
-canvas.addEventListener('pointerup', endPointer);
-canvas.addEventListener('pointercancel', endPointer);
-
-canvas.addEventListener('keydown', (event) => {
-  const key = event.key;
-  let changed = true;
-
-  if (key === 'ArrowRight') state.yaw = clamp(state.yaw + 0.08, -1.02, -0.18);
-  else if (key === 'ArrowLeft') state.yaw = clamp(state.yaw - 0.08, -1.02, -0.18);
-  else if (key === 'ArrowUp') state.pitch = clamp(state.pitch + 0.04, 0.08, 0.37);
-  else if (key === 'ArrowDown') state.pitch = clamp(state.pitch - 0.04, 0.08, 0.37);
-  else if (key === '+' || key === '=') setZoom(state.zoom + 0.06);
-  else if (key === '-') setZoom(state.zoom - 0.06);
-  else if (key.toLowerCase() === 'r') resetView();
-  else changed = false;
-
-  if (changed) {
+  if (event.pointerType === 'touch') {
+    const bounds = canvas.getBoundingClientRect();
+    const role = event.clientX - bounds.left < bounds.width * 0.48 ? 'move' : 'look';
+    touchPointers.set(event.pointerId, {
+      role,
+      startX: event.clientX,
+      startY: event.clientY,
+      lastX: event.clientX,
+      lastY: event.clientY,
+    });
+    canvas.setPointerCapture(event.pointerId);
+    if (role === 'move') refreshTouchMovement();
     event.preventDefault();
-    hideHint();
-    scheduleRender();
+    return;
+  }
+
+  if (event.pointerType === 'mouse' && document.pointerLockElement !== canvas) {
+    // Pointer lock is ideal for a desktop 360° view. A drag fallback still works in preview frames that block it.
+    mouseDrag = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    canvas.setPointerCapture(event.pointerId);
+    const lock = canvas.requestPointerLock?.();
+    if (lock?.catch) lock.catch(() => {});
   }
 });
 
-turnRight.addEventListener('click', () => {
-  state.yaw = clamp(state.yaw + 0.1, -1.02, -0.18);
-  hideHint();
-  scheduleRender();
+canvas.addEventListener('pointermove', (event) => {
+  const pointer = touchPointers.get(event.pointerId);
+  if (pointer) {
+    const deltaX = event.clientX - pointer.lastX;
+    const deltaY = event.clientY - pointer.lastY;
+    pointer.lastX = event.clientX;
+    pointer.lastY = event.clientY;
+
+    if (pointer.role === 'look') {
+      state.yaw = normalizeAngle(state.yaw + deltaX * 0.007);
+      state.pitch = clamp(state.pitch - deltaY * 0.0038, -0.34, 0.34);
+      requestRender();
+    } else {
+      refreshTouchMovement();
+    }
+
+    event.preventDefault();
+    return;
+  }
+
+  if (mouseDrag && mouseDrag.id === event.pointerId && document.pointerLockElement !== canvas) {
+    state.yaw = normalizeAngle(state.yaw + (event.clientX - mouseDrag.x) * 0.006);
+    state.pitch = clamp(state.pitch - (event.clientY - mouseDrag.y) * 0.0032, -0.34, 0.34);
+    mouseDrag.x = event.clientX;
+    mouseDrag.y = event.clientY;
+    requestRender();
+  }
 });
 
-turnLeft.addEventListener('click', () => {
-  state.yaw = clamp(state.yaw - 0.1, -1.02, -0.18);
-  hideHint();
-  scheduleRender();
+function releasePointer(event) {
+  if (touchPointers.has(event.pointerId)) {
+    touchPointers.delete(event.pointerId);
+    refreshTouchMovement();
+  }
+
+  if (mouseDrag && mouseDrag.id === event.pointerId) mouseDrag = null;
+  if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+}
+
+canvas.addEventListener('pointerup', releasePointer);
+canvas.addEventListener('pointercancel', releasePointer);
+
+canvas.addEventListener('contextmenu', (event) => event.preventDefault());
+
+document.addEventListener('pointerlockchange', () => {
+  const isLocked = document.pointerLockElement === canvas;
+  canvas.classList.toggle('is-locked', isLocked);
+  if (isLocked && mouseDrag) {
+    if (canvas.hasPointerCapture(mouseDrag.id)) canvas.releasePointerCapture(mouseDrag.id);
+    mouseDrag = null;
+  }
 });
 
-zoomIn.addEventListener('click', () => setZoom(state.zoom + 0.06));
-zoomOut.addEventListener('click', () => setZoom(state.zoom - 0.06));
-resetButton.addEventListener('click', resetView);
-lightingButton.addEventListener('click', () => {
-  state.night = !state.night;
-  updateLighting();
+document.addEventListener('mousemove', (event) => {
+  if (document.pointerLockElement !== canvas) return;
+  state.yaw = normalizeAngle(state.yaw + event.movementX * 0.00255);
+  state.pitch = clamp(state.pitch - event.movementY * 0.0023, -0.34, 0.34);
+  requestRender();
+});
+
+document.addEventListener('keydown', (event) => {
+  const moveKeys = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown'];
+
+  if (moveKeys.includes(event.code)) {
+    keys.add(event.code);
+    startMovement();
+    event.preventDefault();
+    return;
+  }
+
+  if (event.code === 'ArrowLeft' || event.code === 'ArrowRight') {
+    state.yaw = normalizeAngle(state.yaw + (event.code === 'ArrowLeft' ? -0.09 : 0.09));
+    requestRender();
+    event.preventDefault();
+  }
+});
+
+document.addEventListener('keyup', (event) => {
+  if (keys.delete(event.code)) event.preventDefault();
+});
+
+window.addEventListener('blur', () => {
+  keys.clear();
+  touchPointers.clear();
+  touchMove = { forward: 0, strafe: 0 };
 });
 
 if ('ResizeObserver' in window) {
-  new ResizeObserver(resizeCanvas).observe(viewport);
+  new ResizeObserver(resizeCanvas).observe(canvas);
 } else {
   window.addEventListener('resize', resizeCanvas, { passive: true });
 }
 
 resizeCanvas();
-updateLighting();

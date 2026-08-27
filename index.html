@@ -3,123 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta
-      name="description"
-      content="غرفة ثلاثية الأبعاد خفيفة تعمل باستخدام Canvas 2D فقط، ومصممة للأجهزة الضعيفة."
-    />
-    <meta name="theme-color" content="#101b22" />
-    <title>غرفة صغيرة — تجربة 3D خفيفة</title>
+    <meta name="theme-color" content="#1a2529" />
+    <title>غرفة ثلاثية الأبعاد</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <main class="experience">
-      <section class="intro-panel" aria-labelledby="page-title">
-        <a class="room-mark" href="#room" aria-label="الانتقال إلى الغرفة">
-          <span class="mark-cube"><i></i><b></b><em></em></span>
-          <span>ROOM <b>01</b></span>
-        </a>
-
-        <div class="intro-copy">
-          <p class="eyebrow"><span></span> LIGHTWEIGHT 3D</p>
-          <h1 id="page-title">غرفة صغيرة.<br /><em>منظور كبير.</em></h1>
-          <p class="intro-text">
-            مشهد غرفة ثلاثي الأبعاد بسيط، مرسوم يدويًا على Canvas من دون مكتبات أو WebGL — ليبقى سريعًا حتى على الأجهزة الضعيفة.
-          </p>
-        </div>
-
-        <div class="feature-list" aria-label="مميزات التجربة">
-          <div>
-            <span class="feature-number">01</span>
-            <p><strong>خفيفة فعلًا</strong>رسم عند الحركة فقط، بلا مؤثرات مستمرة أو ملفات ثقيلة.</p>
-          </div>
-          <div>
-            <span class="feature-number">02</span>
-            <p><strong>تفاعلية</strong>اسحب داخل المشهد أو استخدم الأسهم لتغيير زاوية النظر.</p>
-          </div>
-          <div>
-            <span class="feature-number">03</span>
-            <p><strong>متجاوبة</strong>تتكيف مع حجم الشاشة وتقلل دقة الرسم تلقائيًا عند الحاجة.</p>
-          </div>
-        </div>
-
-        <div class="intro-footer">
-          <span class="energy-dot"></span>
-          <span>وضع الأداء الخفيف نشط</span>
-        </div>
-      </section>
-
-      <section class="room-panel" id="room" aria-labelledby="room-title">
-        <header class="room-header">
-          <div class="room-heading">
-            <p class="eyebrow">INTERACTIVE SCENE</p>
-            <h2 id="room-title">استكشف المساحة</h2>
-          </div>
-          <div class="header-actions">
-            <button class="icon-button" id="lighting-toggle" type="button" aria-pressed="false" aria-label="تفعيل الإضاءة المسائية" title="تغيير الإضاءة">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v2.3M12 18.7V21M3 12h2.3M18.7 12H21M5.64 5.64l1.63 1.63M16.73 16.73l1.63 1.63M18.36 5.64l-1.63 1.63M7.27 16.73l-1.63 1.63"/><circle cx="12" cy="12" r="4"/></svg>
-              <span>إضاءة</span>
-            </button>
-            <button class="icon-button" id="reset-view" type="button" aria-label="إعادة زاوية الغرفة" title="إعادة المنظور">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8.2 8.2 0 1 0 1 4"/><path d="M20 4v7h-7"/></svg>
-              <span>إعادة</span>
-            </button>
-          </div>
-        </header>
-
-        <div class="viewport-shell">
-          <div class="ambient ambient-one" aria-hidden="true"></div>
-          <div class="ambient ambient-two" aria-hidden="true"></div>
-          <canvas
-            id="room-canvas"
-            tabindex="0"
-            aria-label="غرفة ثلاثية الأبعاد. اسحب بإصبعك أو بالفأرة لتدوير المنظور، واستخدم أسهم لوحة المفاتيح للتحكم."
-          ></canvas>
-
-          <div class="scene-label label-window" aria-hidden="true"><i></i> نافذة</div>
-          <div class="scene-label label-desk" aria-hidden="true"><i></i> مكتب العمل</div>
-          <div class="scene-label label-chair" aria-hidden="true"><i></i> كرسي</div>
-
-          <div class="scene-status" aria-live="polite">
-            <span class="status-dot"></span>
-            <span id="lighting-state">إضاءة نهارية</span>
-          </div>
-
-          <div class="performance-badge">
-            <span>CANVAS 2D</span>
-            <i></i>
-            <span>NO WEBGL</span>
-          </div>
-
-          <div class="interaction-hint" id="interaction-hint">
-            <span class="drag-icon"><i></i><i></i></span>
-            <span>اسحب لتغيير المنظور</span>
-          </div>
-        </div>
-
-        <footer class="room-controls" aria-label="عناصر التحكم في الغرفة">
-          <div class="control-copy">
-            <span class="control-title">التحكم</span>
-            <span class="control-note">اسحب أو استخدم الأسهم</span>
-          </div>
-          <div class="direction-controls" aria-label="تدوير الغرفة">
-            <button id="turn-right" type="button" aria-label="تدوير الغرفة إلى اليمين">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-            </button>
-            <button id="turn-left" type="button" aria-label="تدوير الغرفة إلى اليسار">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>
-            </button>
-          </div>
-          <div class="zoom-controls">
-            <button id="zoom-out" type="button" aria-label="إبعاد المنظور">−</button>
-            <span id="zoom-value">100%</span>
-            <button id="zoom-in" type="button" aria-label="تقريب المنظور">+</button>
-          </div>
-        </footer>
-      </section>
-    </main>
-
-    <div class="mobile-tip" aria-hidden="true">اسحب الغرفة بإصبعك لاكتشاف التفاصيل <span>↙</span></div>
-
+    <canvas
+      id="room-canvas"
+      tabindex="0"
+      aria-label="غرفة ثلاثية الأبعاد تفاعلية"
+    ></canvas>
     <script src="script.js"></script>
   </body>
 </html>

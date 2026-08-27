@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0e2433">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Season Runner — مغامرة الفصول</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="assets/icon-192.png">
+<link rel="apple-touch-icon" href="assets/icon-192.png">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div id="stage">
+  <canvas id="game"></canvas>
+  <div id="vignette"></div>
+
+  <!-- ======= HUD ======= -->
+  <div id="hud" class="hidden">
+    <div class="hud-top">
+      <div class="hud-left">
+        <div class="chip" id="chip-leaves"><span class="ico">🍃</span><b id="hud-leaves">0</b></div>
+        <div class="chip" id="chip-gems"><span class="ico">💎</span><b id="hud-gems">0</b></div>
+      </div>
+      <div class="hud-center">
+        <div class="season-pill" id="season-pill">
+          <span id="season-emoji">🌸</span>
+          <span id="season-name">الربيع</span>
+          <div class="season-bar"><i id="season-bar-fill"></i></div>
+        </div>
+      </div>
+      <div class="hud-right">
+        <button class="icon-btn" id="btn-pause" aria-label="pause">⏸</button>
+      </div>
+    </div>
+
+    <div class="hud-bottom">
+      <div class="chip chip-dist">
+        <span class="ico">📏</span><b id="hud-dist">0</b><span class="unit" data-i18n="hud.m">م</span>
+      </div>
+      <div class="chip chip-score"><span class="ico">🏅</span><b id="hud-score">0</b></div>
+      <div class="dash-btn" id="dash-ind">
+        <svg viewBox="0 0 48 48" class="dash-ring">
+          <circle cx="24" cy="24" r="20" class="dash-ring-bg"/>
+          <circle cx="24" cy="24" r="20" class="dash-ring-fg" id="dash-ring-fg"/>
+        </svg>
+        <span class="dash-ico">💨</span>
+        <span class="dash-cd" id="dash-cd"></span>
+      </div>
+    </div>
+
+    <div id="power-chips" class="power-chips"></div>
+    <div id="hint" class="hint hidden" data-i18n="hud.hint">اضغط للقفز 👆</div>
+    <div id="countdown" class="countdown hidden"></div>
+  </div>
+
+  <!-- ======= Screens ======= -->
+  <section id="screen-menu" class="screen active">
+    <div class="menu-top">
+      <button class="icon-btn" id="btn-lang" title="Language">🌐</button>
+      <button class="icon-btn" id="btn-sound-menu" title="Sound">🔊</button>
+    </div>
+    <div class="menu-inner">
+      <div class="logo">
+        <div class="logo-title">SEASON <span>RUNNER</span></div>
+        <div class="logo-sub" data-i18n="menu.sub">مغامرة الفصول الأربعة</div>
+      </div>
+      <div class="nuro-float" id="menu-nuro"></div>
+      <div class="menu-buttons">
+        <button class="btn btn-primary btn-big" id="btn-play" data-i18n="menu.start">▶ ابدأ الجري</button>
+        <button class="btn" id="btn-stats" data-i18n="menu.stats">🏆 الأرقام القياسية</button>
+        <button class="btn" id="btn-skins" data-i18n="menu.skins">🎨 السكانات</button>
+        <button class="btn" id="btn-settings" data-i18n="menu.settings">⚙️ الإعدادات</button>
+        <button class="btn" id="btn-story" data-i18n="menu.story">📖 القصة</button>
+        <button class="btn btn-ghost" id="btn-howto" data-i18n="menu.howto">❓ طريقة اللعب</button>
+      </div>
+      <div class="menu-footer" id="menu-footer">v1.0.0</div>
+    </div>
+  </section>
+
+  <section id="screen-stats" class="screen">
+    <div class="panel">
+      <h2 data-i18n="stats.title">🏆 الأرقام القياسية</h2>
+      <div class="stat-grid">
+        <div class="stat"><span class="ico">📏</span><b id="st-dist">0</b><label data-i18n="stats.bestDist">أطول مسافة</label></div>
+        <div class="stat"><span class="ico">🏅</span><b id="st-score">0</b><label data-i18n="stats.bestScore">أعلى نقاط</label></div>
+        <div class="stat"><span class="ico">🔥</span><b id="st-streak">0</b><label data-i18n="stats.bestStreak">أطول سلسلة</label></div>
+        <div class="stat"><span class="ico">🏃</span><b id="st-runs">0</b><label data-i18n="stats.runs">عدد الجولات</label></div>
+        <div class="stat"><span class="ico">🍃</span><b id="st-leaves">0</b><label data-i18n="stats.totalLeaves">إجمالي الأوراق</label></div>
+        <div class="stat"><span class="ico">💎</span><b id="st-gems">0</b><label data-i18n="stats.totalGems">إجمالي الشظايا</label></div>
+      </div>
+      <h3 data-i18n="stats.top5">🏆 أفضل 5 جولات محليًا</h3>
+      <ol id="leaderboard" class="leaderboard"></ol>
+      <button class="btn btn-back" id="btn-stats-back" data-i18n="stats.back">← رجوع</button>
+    </div>
+  </section>
+
+  <section id="screen-skins" class="screen">
+    <div class="panel">
+      <h2 data-i18n="skins.title">🎨 السكانات</h2>
+      <div class="skins-grid" id="skins-grid"></div>
+      <div class="skin-msg" id="skin-msg"></div>
+      <button class="btn btn-back" id="btn-skins-back" data-i18n="stats.back">← رجوع</button>
+    </div>
+  </section>
+
+  <section id="screen-settings" class="screen">
+    <div class="panel">
+      <h2 data-i18n="settings.title">⚙️ الإعدادات</h2>
+      <div class="set-row"><label data-i18n="settings.sound">🔊 الصوت</label><label class="switch"><input type="checkbox" id="set-sound"><i></i></label></div>
+      <div class="set-row"><label data-i18n="settings.music">🎵 الموسيقى</label><label class="switch"><input type="checkbox" id="set-music"><i></i></label></div>
+      <div class="set-row"><label data-i18n="settings.vibrate">📳 الاهتزاز</label><label class="switch"><input type="checkbox" id="set-vibrate"><i></i></label></div>
+      <div class="set-row"><label data-i18n="settings.language">🌐 اللغة</label>
+        <select id="set-lang"><option value="ar">العربية</option><option value="en">English</option></select></div>
+      <div class="set-row"><label data-i18n="settings.reset">🗑️ مسح التقدم</label>
+        <button class="btn btn-danger" id="btn-reset" data-i18n="settings.resetBtn">مسح</button></div>
+      <div class="about" id="about-text"></div>
+      <button class="btn btn-back" id="btn-settings-back" data-i18n="stats.back">← رجوع</button>
+    </div>
+  </section>
+
+  <section id="screen-story" class="screen">
+    <div class="panel story-panel">
+      <h2 data-i18n="story.title">📖 قصة نورو</h2>
+      <p class="story-prologue" id="story-prologue"></p>
+      <div class="story-chapters" id="story-chapters"></div>
+      <div class="story-epilogue" id="story-epilogue"></div>
+      <button class="btn btn-back" id="btn-story-back" data-i18n="stats.back">← رجوع</button>
+    </div>
+  </section>
+
+  <section id="screen-howto" class="screen">
+    <div class="panel">
+      <h2 data-i18n="howto.title">❓ طريقة اللعب</h2>
+      <div class="howto-grid" id="howto-grid"></div>
+      <p class="howto-tip" data-i18n="howto.tip">💡 نصيحة: العوائق العلوية تحتاج انزلاق، والأرضية تحتاج قفز!</p>
+      <button class="btn btn-primary" id="btn-howto-play" data-i18n="menu.start">▶ ابدأ الجري</button>
+    </div>
+  </section>
+
+  <section id="screen-pause" class="screen">
+    <div class="panel small">
+      <h2 data-i18n="pause.title">⏸️ إيقاف مؤقت</h2>
+      <button class="btn btn-primary" id="btn-resume" data-i18n="pause.resume">▶ استمرار</button>
+      <button class="btn" id="btn-restart" data-i18n="pause.restart">🔄 إعادة الجولة</button>
+      <button class="btn" id="btn-pause-settings" data-i18n="menu.settings">⚙️ الإعدادات</button>
+      <button class="btn" id="btn-exit" data-i18n="pause.exit">🏠 القائمة الرئيسية</button>
+    </div>
+  </section>
+
+  <section id="screen-death" class="screen">
+    <div class="panel small death-panel">
+      <h2 class="death-title" data-i18n="death.title">💀 انتهت الجولة!</h2>
+      <div class="death-stats">
+        <div class="stat"><span class="ico">📏</span><b id="dt-dist">0</b><label data-i18n="death.dist">المسافة</label></div>
+        <div class="stat"><span class="ico">🏅</span><b id="dt-score">0</b><label data-i18n="death.score">النقاط</label></div>
+        <div class="stat"><span class="ico">🍃</span><b id="dt-leaves">+0</b><label data-i18n="death.leaves">الأوراق</label></div>
+        <div class="stat"><span class="ico">💎</span><b id="dt-gems">+0</b><label data-i18n="death.gems">الشظايا</label></div>
+      </div>
+      <div class="best-line" id="best-line"></div>
+      <div class="newbest hidden" id="newbest" data-i18n="death.newBest">🎉 رقم قياسي جديد!</div>
+      <button class="btn btn-secondary" id="btn-revive" data-i18n="death.revive">📺 إحياء (إعلان)</button>
+      <button class="btn btn-primary" id="btn-retry" data-i18n="death.retry">🔄 حاول تاني</button>
+      <div class="death-row">
+        <button class="btn btn-ghost" id="btn-death-share" data-i18n="death.share">📤 شارك</button>
+        <button class="btn btn-ghost" id="btn-death-menu" data-i18n="death.menu">🏠 القائمة</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======= Overlays ======= -->
+  <div id="transition" class="hidden"></div>
+  <div id="toasts"></div>
+  <div id="ad-overlay" class="hidden">
+    <div class="ad-box">
+      <div class="ad-title" data-i18n="ad.title">📺 إعلان تجريبي</div>
+      <div class="ad-count" id="ad-count">3</div>
+      <div class="ad-bar"><i id="ad-bar-fill"></i></div>
+      <div class="ad-note" data-i18n="ad.note">(في النسخة النهائية: إعلان حقيقي = إحياء مجاني)</div>
+    </div>
+  </div>
+</div>
+
+<script src="js/util.js"></script>
+<script src="js/data.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/fx.js"></script>
+<script src="js/obstacles.js"></script>
+<script src="js/player.js"></script>
+<script src="js/game.js"></script>
+<script src="js/input.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

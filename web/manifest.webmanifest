@@ -1,0 +1,15 @@
+{
+  "name": "Season Runner — مغامرة الفصول",
+  "short_name": "Season Runner",
+  "description": "Endless runner 2D with dynamic season shifting. جمع الأوراق، اهرب من العوائق، وأعد التوازن للفصول!",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#0b1b26",
+  "theme_color": "#0e2433",
+  "icons": [
+    { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
